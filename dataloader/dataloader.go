@@ -16,15 +16,15 @@ type Config[In comparable, Out any] struct {
 	MaxBatch int
 }
 
-func New[In comparable, Out any](config Config[In, Out]) *DataLoader[In, Out] {
-	return &DataLoader[In, Out]{
+func New[In comparable, Out any](config Config[In, Out]) DataLoader[In, Out] {
+	return &DataLoaderParent[In, Out]{
 		fetch:    config.Fetch,
 		wait:     config.Wait,
 		maxBatch: config.MaxBatch,
 	}
 }
 
-type DataLoader[In comparable, Out any] struct {
+type DataLoaderParent[In comparable, Out any] struct {
 	// this method provides the data for the loader
 	fetch func(keys []In) ([]Out, []error)
 
@@ -53,14 +53,14 @@ type dataloaderBatch[In comparable, Out any] struct {
 }
 
 // Load a string by key, batching and caching will be applied automatically
-func (l *DataLoader[In, Out]) Load(key In) (Out, error) {
+func (l *DataLoaderParent[In, Out]) Load(key In) (Out, error) {
 	return l.LoadThunk(key)()
 }
 
 // LoadThunk returns a function that when called will block waiting for a string.
 // This method should be used if you want one goroutine to make requests to many
 // different data loaders without blocking until the thunk is called.
-func (l *DataLoader[In, Out]) LoadThunk(key In) func() (Out, error) {
+func (l *DataLoaderParent[In, Out]) LoadThunk(key In) func() (Out, error) {
 	l.mu.Lock()
 	if l.batch == nil {
 		l.batch = &dataloaderBatch[In, Out]{done: make(chan struct{})}
@@ -91,7 +91,7 @@ func (l *DataLoader[In, Out]) LoadThunk(key In) func() (Out, error) {
 
 // LoadAll fetches many keys at once. It will be broken into appropriate sized
 // sub batches depending on how the loader is configured
-func (l *DataLoader[In, Out]) LoadAll(keys []In) ([]Out, []error) {
+func (l *DataLoaderParent[In, Out]) LoadAll(keys []In) ([]Out, []error) {
 	results := make([]func() (Out, error), len(keys))
 
 	for i, key := range keys {
@@ -109,7 +109,7 @@ func (l *DataLoader[In, Out]) LoadAll(keys []In) ([]Out, []error) {
 // LoadAllThunk returns a function that when called will block waiting for a strings.
 // This method should be used if you want one goroutine to make requests to many
 // different data loaders without blocking until the thunk is called.
-func (l *DataLoader[In, Out]) LoadAllThunk(keys []In) func() ([]Out, []error) {
+func (l *DataLoaderParent[In, Out]) LoadAllThunk(keys []In) func() ([]Out, []error) {
 	results := make([]func() (Out, error), len(keys))
 	for i, key := range keys {
 		results[i] = l.LoadThunk(key)
@@ -126,7 +126,7 @@ func (l *DataLoader[In, Out]) LoadAllThunk(keys []In) func() ([]Out, []error) {
 
 // keyIndex will return the location of the key in the batch, if its not found
 // it will add the key to the batch
-func (b *dataloaderBatch[In, Out]) keyIndex(l *DataLoader[In, Out], key In) int {
+func (b *dataloaderBatch[In, Out]) keyIndex(l *DataLoaderParent[In, Out], key In) int {
 	for i, existingKey := range b.keys {
 		if key == existingKey {
 			return i
@@ -150,7 +150,7 @@ func (b *dataloaderBatch[In, Out]) keyIndex(l *DataLoader[In, Out], key In) int 
 	return pos
 }
 
-func (b *dataloaderBatch[In, Out]) startTimer(l *DataLoader[In, Out]) {
+func (b *dataloaderBatch[In, Out]) startTimer(l *DataLoaderParent[In, Out]) {
 	time.Sleep(l.wait)
 	l.mu.Lock()
 
@@ -166,7 +166,7 @@ func (b *dataloaderBatch[In, Out]) startTimer(l *DataLoader[In, Out]) {
 	b.end(l)
 }
 
-func (b *dataloaderBatch[In, Out]) end(l *DataLoader[In, Out]) {
+func (b *dataloaderBatch[In, Out]) end(l *DataLoaderParent[In, Out]) {
 	b.data, b.error = l.fetch(b.keys)
 	close(b.done)
 }
