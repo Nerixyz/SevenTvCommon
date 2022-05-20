@@ -3,8 +3,6 @@ package query
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"io"
 	"strings"
 
 	"github.com/SevenTV/Common/errors"
@@ -40,18 +38,6 @@ func (q *Query) SearchEmotes(ctx context.Context, opt SearchEmotesOptions) ([]st
 	filter := []string{}
 	if opt.Filter != "" {
 		filter = append(filter, opt.Filter)
-	}
-
-	// Set up db query
-	bans, err := q.Bans(ctx, BanQueryOptions{ // remove emotes made by usersa who own nothing and are happy
-		Filter: bson.M{"effects": bson.M{"$bitsAnySet": structures.BanEffectNoOwnership | structures.BanEffectMemoryHole}},
-	})
-	if err != nil {
-		return nil, 0, err
-	}
-
-	for _, ban := range bans.All {
-		filter = append(filter, fmt.Sprintf("owner_id != '%s'", ban.VictimID.Hex()))
 	}
 
 	// Apply permission checks
@@ -90,82 +76,16 @@ func (q *Query) SearchEmotes(ctx context.Context, opt SearchEmotesOptions) ([]st
 			ids[i] = hit.ID
 		}
 
-		cur, err := q.mongo.Collection(mongo.CollectionNameEmotes).Aggregate(ctx, mongo.Pipeline{
-			{{
-				Key: "$match",
-				Value: bson.M{
-					"_id": bson.M{
-						"$in": ids,
-					},
-				},
-			}},
-			{{
-				Key: "$lookup",
-				Value: mongo.Lookup{
-					From:         mongo.CollectionNameUsers,
-					LocalField:   "emotes.owner_id",
-					ForeignField: "_id",
-					As:           "emote_owners",
-				},
-			}},
-			{{
-				Key: "$lookup",
-				Value: mongo.Lookup{
-					From:         mongo.CollectionNameEntitlements,
-					LocalField:   "emotes.owner_id",
-					ForeignField: "user_id",
-					As:           "role_entitlements",
-				},
-			}},
-			{{
-				Key: "$set",
-				Value: bson.M{
-					"role_entitlements": bson.M{
-						"$filter": bson.M{
-							"input": "$role_entitlements",
-							"as":    "ent",
-							"cond": bson.M{
-								"$eq": bson.A{"$$ent.kind", structures.EntitlementKindRole},
-							},
-						},
-					},
-				},
-			}},
+		cur, err := q.mongo.Collection(mongo.CollectionNameEmotes).Find(ctx, bson.M{
+			"_id": bson.M{
+				"$in": ids,
+			},
 		})
 		if err != nil {
 			return nil, 0, errors.ErrInternalServerError().SetDetail(err.Error())
 		}
-
-		v := aggregatedEmotesResult{}
-		if cur.Next(ctx) {
-			if err = cur.Decode(&v); err != nil {
-				if err == io.EOF {
-					return nil, 0, errors.ErrNoItems()
-				}
-				return nil, 0, err
-			}
-		}
-
-		// Map all objects
-		qb := QueryBinder{ctx, q}
-		ownerMap, err := qb.MapUsers(v.EmoteOwners, v.RoleEntitlements...)
-		if err != nil {
+		if err = cur.All(ctx, &result); err != nil {
 			return nil, 0, err
-		}
-
-		for _, e := range v.Emotes { // iterate over emotes
-			if e.ID.IsZero() {
-				continue
-			}
-
-			if _, banned := bans.MemoryHole[e.OwnerID]; banned {
-				e.OwnerID = primitive.NilObjectID
-			} else {
-				owner := ownerMap[e.OwnerID]
-				e.Owner = &owner
-			}
-
-			result = append(result, e)
 		}
 	}
 
