@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"time"
 
 	"github.com/SevenTV/Common/errors"
 	"github.com/SevenTV/Common/mongo"
@@ -26,7 +25,7 @@ type SearchHit struct {
 	OwnerID      primitive.ObjectID `json:"owner_id"`
 	Listed       bool               `json:"listed"`
 	ChannelCount int                `json:"channel_count"`
-	CreatedAt    time.Time          `json:"created_at"`
+	CreatedAt    int                `json:"created_at"`
 }
 
 func (q *Query) SearchEmotes(ctx context.Context, opt SearchEmotesOptions) ([]structures.Emote, int, error) {
