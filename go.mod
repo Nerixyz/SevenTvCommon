@@ -9,7 +9,14 @@ require (
 )
 
 require (
+	github.com/andybalholm/brotli v1.0.4 // indirect
+	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
+	github.com/josharian/intern v1.0.0 // indirect
+	github.com/mailru/easyjson v0.7.7 // indirect
+	github.com/meilisearch/meilisearch-go v0.19.1 // indirect
+	github.com/valyala/bytebufferpool v1.0.0 // indirect
+	github.com/valyala/fasthttp v1.37.0 // indirect
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 )
@@ -22,7 +29,7 @@ require (
 	github.com/golang-jwt/jwt/v4 v4.4.1
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/klauspost/compress v1.15.1 // indirect
+	github.com/klauspost/compress v1.15.4 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/stretchr/testify v1.7.1 // indirect
